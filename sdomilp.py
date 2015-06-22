@@ -188,11 +188,7 @@ def create_model(data):
     
     # Expressions
     # ===========
-        
-#    m.u = Expression(
-#        m.t, m.con,
-#        doc='Input power of the equipment')
-        
+               
     m.u = Var(
         m.t, m.con,
         within=NonNegativeReals,
