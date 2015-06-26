@@ -185,6 +185,28 @@ def create_model(data):
         m.cost_type,
         within=NonNegativeReals,
         doc='Cost by type')
+        
+    # gamma = active cost function (linearisation)
+    m.gamma_1 = Var(
+        m.con,
+        within=Binary,
+        doc='gamma 1 == active cost function 1')
+        
+    m.gamma_2 = Var(
+        m.con,
+        within=Binary,
+        doc='gamma 2 == active cost function 2')
+    
+    # part_size = partial sizing for cost linearisation
+    m.part_size_1 = Var(
+        m.con,
+        within=NonNegativeReals,
+        doc='size part of cost function 1')
+        
+    m.part_size_2 = Var(
+        m.con,
+        within=NonNegativeReals,
+        doc='size part of cost function 2')
     
     # Expressions
     # ===========
@@ -294,6 +316,36 @@ def create_model(data):
         m.cost_type,
         rule=c_costs_rule,
         doc='cost function by cost type')
+        
+    m.c_gamma = Constraint(
+        m.con,
+        rule=c_gamma_rule,
+        doc='gamma_1 + gamma_2 == y')
+        
+    m.c_gamma_1_min = Constraint(
+        m.con,
+        rule=c_gamma_1_min_rule,
+        doc='gamma_1 * Q1 <= size')
+        
+    m.c_gamma_1_max = Constraint(
+        m.con,
+        rule=c_gamma_1_max_rule,
+        doc='gamma_1 * Q2 >= size')
+    
+    m.c_gamma_2_min = Constraint(
+        m.con,
+        rule=c_gamma_2_min_rule,
+        doc='gamma_2 * Q2 <= size')
+        
+    m.c_gamma_2_max = Constraint(
+        m.con,
+        rule=c_gamma_2_max_rule,
+        doc='gamma_2 * Q3 >= size')
+        
+    m.c_part_size = Constraint(
+        m.con,
+        rule=c_part_size_rule,
+        doc='part_size_1 + part_size_2 == size')
     
     # Objective
     m.obj = Objective(
@@ -351,23 +403,24 @@ def c_psi_max_rule(m, t, con):
 
 # Demand constraints
 def c_heatdemand_rule(m, t):  
-    return (sum(m.v[t, c] for c in m.con_heat)  == m.demand.loc[t]['Heating']
+    return (sum(m.v[t, c]
+            for c in m.con_heat)  == m.demand.loc[t]['Heating']
             + (sum(m.u[t, d] for d in m.int_heat_demand)))
     
 def c_cooldemand_rule(m, t):
     return (sum(m.v[t, c] for c in m.con_cool)  == m.demand.loc[t]['Cooling'])
 
 def c_eldemand_rule(m, t):
-    return (sum(m.v[t, c] * m.conversion.loc[c]['el-efficiency'] 
-        for c in m.con_el) + m.el_buy[t] == 
-        sum(m.u[t, d] for d in m.int_el_demand) + m.el_sell[t])
+    return (sum(m.v[t, c] * m.conversion.loc[c]['el-efficiency'] /
+            m.conversion.loc[c]['th-efficiency'] for c in m.con_el)
+            + m.el_buy[t] ==
+            sum(m.u[t, d] for d in m.int_el_demand) + m.el_sell[t])
 #    return Constraint.Skip
     
 # Input constraints
 def c_input_rule(m, t, con):
     return (m.u[t, con] == (m.ksi[t, con] * m.conversion.loc[con]['u0'] / 
-            m.conversion.loc[con]['efficiency']) + (((m.v[t, con] * 
-            m.conversion.loc[con]['el-efficiency']) /
+            m.conversion.loc[con]['efficiency']) + (((m.v[t, con]) /
             m.conversion.loc[con]['efficiency']) *
             m.conversion.loc[con]['performance-slope']))
             
@@ -378,14 +431,18 @@ def c_costs_rule(m, cost_type):
     """
     if cost_type == 'Inv':
         return m.costs['Inv'] == \
-            sum(m.y[p] * m.conversion.loc[p]['I0'] + m.size[p] * 
-                m.conversion.loc[p]['investment-slope-1'] for p in m.con)
+            sum((m.gamma_1[p] * m.conversion.loc[p]['IX1'] + m.part_size_1[p] * 
+                m.conversion.loc[p]['investment-slope-1']) +
+                (m.gamma_2[p] * m.conversion.loc[p]['IX2'] + m.part_size_2[p] * 
+                m.conversion.loc[p]['investment-slope-2']) for p in m.con)
         
     elif cost_type == 'Mai':
         return m.costs['Mai'] == \
             sum((m.conversion.loc[p]['maint-percentage']/100) * 
-                (m.y[p] * m.conversion.loc[p]['I0'] + m.size[p] * 
-                m.conversion.loc[p]['investment-slope-1']) for p in m.con)
+                ((m.gamma_1[p] * m.conversion.loc[p]['IX1'] + m.part_size_1[p] * 
+                m.conversion.loc[p]['investment-slope-1']) +
+                (m.gamma_2[p] * m.conversion.loc[p]['IX2'] + m.part_size_2[p] * 
+                m.conversion.loc[p]['investment-slope-2'])) for p in m.con)
         
     elif cost_type == 'Fuel':
         gas_user_index = m.connectivity['NG'][m.connectivity['NG'] == 1].index
@@ -402,6 +459,26 @@ def c_costs_rule(m, cost_type):
         
     else:
         raise NotImplementedError("Unknown cost type.")
+        
+# Investment cost function constraints
+def c_gamma_rule(m, con):
+    return (m.gamma_1[con] + m.gamma_2[con] == m.y[con])
+    
+def c_gamma_1_min_rule(m, con):
+    return (m.gamma_1[con] * m.conversion.loc[con]['Q1'] <= m.part_size_1[con])
+
+def c_gamma_1_max_rule(m, con):
+    return (m.gamma_1[con] * m.conversion.loc[con]['Q2'] >= m.part_size_1[con])
+    
+def c_gamma_2_min_rule(m, con):
+    return (m.gamma_2[con] * m.conversion.loc[con]['Q2'] <= m.part_size_2[con])
+
+def c_gamma_2_max_rule(m, con):
+    return (m.gamma_2[con] * m.conversion.loc[con]['Q3'] >= m.part_size_2[con])
+    
+def c_part_size_rule(m, con):
+    return (m.part_size_1[con] + m.part_size_2[con] == m.size[con])
+    
 
 # Objective rule
 def obj_rule(m):
@@ -423,6 +500,11 @@ if __name__ == '__main__':
     instance = model.create()
     opt = SolverFactory("glpk")
     results = opt.solve(instance)
+    
+#    opt = SolverFactory("cbc")    
+    
+#    solver_manager = SolverManagerFactory('neos')
+#    results = solver_manager.solve(instance, opt=opt)
     
     instance.load(results)
     
