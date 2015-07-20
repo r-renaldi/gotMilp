@@ -155,20 +155,74 @@ def create_model(data):
         within=NonNegativeReals,
         doc='Output power of the equipment')
         
-    m.delta = Var(
+    m.delta_1 = Var(
         m.t, m.con,
         within=Binary,
         doc='ON/OFF status of the equipment')
+        
+    m.delta_2 = Var(
+        m.t, m.con,
+        within=Binary,
+        doc='ON/OFF status of the equipment')
+        
+    # First Glover transformation (delta * output)
     
-    m.ksi = Var(
+    m.ksi_1 = Var(
+        m.t, m.con,
+        within=NonNegativeReals,
+        doc='ksi = delta * v')
+        
+    m.ksi_2 = Var(
         m.t, m.con,
         within=NonNegativeReals,
         doc='ksi = delta * v')
     
-    m.psi = Var(
+    m.psi_1 = Var(
         m.t, m.con,
         within=NonNegativeReals,
         doc='psi == equipment size for each t')
+        
+    m.psi_2 = Var(
+        m.t, m.con,
+        within=NonNegativeReals,
+        doc='psi == equipment size for each t')
+        
+    # Performance curve linearisation
+        
+#    m.beta_1 = Var(
+#        m.con,
+#        within=Binary,
+#        doc='beta 1 == active performance function 1')
+#        
+#    m.beta_2 = Var(
+#        m.con,
+#        within=Binary,
+#        doc='beta 2 == active performance function 2')
+#        
+    m.v_part_1 = Var(
+        m.t, m.con,
+        within=NonNegativeReals,
+        doc='output part of performance function 1')
+        
+    m.v_part_2 = Var(
+        m.t, m.con,
+        within=NonNegativeReals,
+        doc='output part of performance function 2')
+    
+    # Second Glover transformation due to performance curve linearisation
+    
+#    m.chi_1 = Var(
+#        m.t, m.con,
+#        within=NonNegativeReals,
+#        doc='chi 1 = beta 1 * ksi')
+#        
+#    m.chi_2 = Var(
+#        m.t, m.con,
+#        within=NonNegativeReals,
+#        doc='chi 2 = beta 2 * ksi')
+        
+    
+    # Electricity to/from the grid
         
     m.el_sell = Var(
         m.t,
@@ -240,48 +294,127 @@ def create_model(data):
         doc='size cool supplier == peak cool')
         
     # Output constraints
-    m.c_v_min = Constraint(
+        
+    m.c_v_part = Constraint(
         m.t, m.con,
-        rule=c_v_min_rule,
+        rule=c_v_part_rule,
+        doc='v_part_1 + v_part_2 = v')
+        
+    m.c_v_part_1_min = Constraint(
+        m.t, m.con,
+        rule=c_v_part_1_min_rule,
         doc='ksi*v_min <= v')
         
-    m.c_v_max = Constraint(
+    m.c_v_part_1_max = Constraint(
         m.t, m.con,
-        rule=c_v_max_rule,
+        rule=c_v_part_1_max_rule,
+        doc='v <= ksi')
+        
+    m.c_v_part_2_min = Constraint(
+        m.t, m.con,
+        rule=c_v_part_2_min_rule,
+        doc='ksi*v_min <= v')
+        
+    m.c_v_part_2_max = Constraint(
+        m.t, m.con,
+        rule=c_v_part_2_max_rule,
         doc='v <= ksi')
         
     # Delta (ON/OFF) constraints
     m.c_delta = Constraint(
         m.t, m.con,
         rule=c_delta_rule,
-        doc='delta <= y')
+        doc='delta_1 + delta_2 <= y')
         
     # ksi constraints
-    m.c_ksi_min = Constraint(
+    m.c_ksi_1_min = Constraint(
         m.t, m.con,
-        rule=c_ksi_min_rule,
-        doc='delta*min-cap <= ksi')
+        rule=c_ksi_1_min_rule,
+        doc='delta_1*min-cap <= ksi_1')
         
-    m.c_ksi_max = Constraint(
+    m.c_ksi_1_max = Constraint(
         m.t, m.con,
-        rule=c_ksi_max_rule,
-        doc='ksi <= delta*max-cap')
+        rule=c_ksi_1_max_rule,
+        doc='ksi_1 <= delta_1*max-cap')
+        
+    m.c_ksi_2_min = Constraint(
+        m.t, m.con,
+        rule=c_ksi_2_min_rule,
+        doc='delta_2*min-cap <= ksi_2')
+        
+    m.c_ksi_2_max = Constraint(
+        m.t, m.con,
+        rule=c_ksi_2_max_rule,
+        doc='ksi_2 <= delta_2*max-cap')
         
     # psi constraints
-    m.c_psi = Constraint(
+
+    m.c_psi_1 = Constraint(
         m.t, m.con,
-        rule=c_psi_rule,
-        doc='psi == size')
+        rule=c_psi_1_rule,
+        doc='psi_1 == size')
         
-    m.c_psi_min = Constraint(
+    m.c_psi_2 = Constraint(
         m.t, m.con,
-        rule=c_psi_min_rule,
+        rule=c_psi_2_rule,
+        doc='psi_2 == size')
+        
+    m.c_psi_1_min = Constraint(
+        m.t, m.con,
+        rule=c_psi_1_min_rule,
         doc='0 <= psi-ksi')
         
-    m.c_psi_max = Constraint(
+    m.c_psi_1_max = Constraint(
         m.t, m.con,
-        rule=c_psi_max_rule,
+        rule=c_psi_1_max_rule,
         doc='psi-ksi <= (1-delta)*max-cap')
+        
+    m.c_psi_2_min = Constraint(
+        m.t, m.con,
+        rule=c_psi_2_min_rule,
+        doc='0 <= psi-ksi')
+        
+    m.c_psi_2_max = Constraint(
+        m.t, m.con,
+        rule=c_psi_2_max_rule,
+        doc='psi-ksi <= (1-delta)*max-cap')
+        
+    # performance curve linearisation constraints
+#    m.c_beta = Constraint(
+#        m.con,
+#        rule=c_beta_rule,
+#        doc='beta_1 + beta_2 == y')
+#        
+#    m.c_beta_1_min = Constraint(
+#        m.con,
+#        rule=c_beta_1_min_rule,
+#        doc='beta_1 * v1 <= v_part_1')
+#        
+#    m.c_beta_1_max = Constraint(
+#        m.con,
+#        rule=c_beta_1_max_rule,
+#        doc='beta_1 * v2 >= v_part_1')
+#        
+#    m.c_beta_2_min = Constraint(
+#        m.con,
+#        rule=c_beta_2_min_rule,
+#        doc='beta_2 * v2 <= v_part_2')
+#        
+#    m.c_beta_2_max = Constraint(
+#        m.con,
+#        rule=c_beta_2_max_rule,
+#        doc='beta_2 * v3 >= v_part_2')
+        
+#    m.c_v_part = Constraint(
+#        m.con,
+#        rule=c_v_part_rule,
+#        doc='v_part_1 + v_part_2 = v')
+        
+    # chi constraints
+    
+    # chi 1 constraints
+    
+    # chi 2 constraints
         
 #    # Combinatorial redundancy constraint
 #    m.c_combinatorial_redundancy = Constraint(
@@ -325,22 +458,22 @@ def create_model(data):
     m.c_gamma_1_min = Constraint(
         m.con,
         rule=c_gamma_1_min_rule,
-        doc='gamma_1 * Q1 <= size')
+        doc='gamma_1 * Q1 <= part size 1')
         
     m.c_gamma_1_max = Constraint(
         m.con,
         rule=c_gamma_1_max_rule,
-        doc='gamma_1 * Q2 >= size')
+        doc='gamma_1 * Q2 >= part size 1')
     
     m.c_gamma_2_min = Constraint(
         m.con,
         rule=c_gamma_2_min_rule,
-        doc='gamma_2 * Q2 <= size')
+        doc='gamma_2 * Q2 <= part size 2')
         
     m.c_gamma_2_max = Constraint(
         m.con,
         rule=c_gamma_2_max_rule,
-        doc='gamma_2 * Q3 >= size')
+        doc='gamma_2 * Q3 >= part size 2')
         
     m.c_part_size = Constraint(
         m.con,
@@ -372,38 +505,65 @@ def c_peak_heat_rule(m):
 def c_peak_cool_rule(m):
     return (sum(m.size[q] for q in m.con_cool) == m.demand['peak-cool'][0])
 
-# Output constraints
-def c_v_min_rule(m, t, con):
-    return (m.ksi[t, con] * m.conversion.loc[con]['min-lf'] <= m.v[t, con])
+# Output constraints   
 
-def c_v_max_rule(m, t, con):
-    return (m.v[t, con] <= m.ksi[t, con])
+def c_v_part_rule(m, t, con):
+    return (m.v_part_1[t, con] + m.v_part_2[t, con] == m.v[t, con])
+    
+def c_v_part_1_min_rule(m, t, con):
+    return (m.ksi_1[t, con] * m.conversion.loc[con]['v1'] <= m.v_part_1[t, con])
+
+def c_v_part_1_max_rule(m, t, con):
+    return (m.v_part_1[t, con] <= m.ksi_1[t, con] * m.conversion.loc[con]['v2'])
+    
+def c_v_part_2_min_rule(m, t, con):
+    return (m.ksi_2[t, con] * m.conversion.loc[con]['v2'] <= m.v_part_2[t, con])
+
+def c_v_part_2_max_rule(m, t, con):
+    return (m.v_part_2[t, con] <= m.ksi_2[t, con] * m.conversion.loc[con]['v3'])
 
 # Delta (ON/OFF) constraint
 def c_delta_rule(m, t, con):
-    return (m.delta[t, con] <= m.y[con])
+    return (m.delta_1[t, con] + m.delta_2[t, con] <= m.y[con])
     
 # Ksi constraints
-def c_ksi_min_rule(m, t, con):
-    return (m.delta[t, con]*m.conversion.loc[con]['min-cap'] <= m.ksi[t, con])
+def c_ksi_1_min_rule(m, t, con):
+    return (m.delta_1[t, con]*m.conversion.loc[con]['min-cap'] <= m.ksi_1[t, con])
     
-def c_ksi_max_rule(m, t, con):
-    return (m.ksi[t, con] <= m.delta[t, con]*m.conversion.loc[con]['max-cap'])
+def c_ksi_1_max_rule(m, t, con):
+    return (m.ksi_1[t, con] <= m.delta_1[t, con]*m.conversion.loc[con]['max-cap'])
+    
+def c_ksi_2_min_rule(m, t, con):
+    return (m.delta_2[t, con]*m.conversion.loc[con]['min-cap'] <= m.ksi_2[t, con])
+    
+def c_ksi_2_max_rule(m, t, con):
+    return (m.ksi_2[t, con] <= m.delta_2[t, con]*m.conversion.loc[con]['max-cap'])
 
 # Psi constraints
-def c_psi_rule(m, t, con):
-    return (m.psi[t, con] == m.size[con])
-    
-def c_psi_min_rule(m, t, con):
-    return (0 <= (m.psi[t, con] - m.ksi[t, con]))
 
-def c_psi_max_rule(m, t, con):
-    return ((m.psi[t, con] - m.ksi[t, con]) <= (1-m.delta[t, con]) *
+def c_psi_1_rule(m, t, con):
+    return (m.psi_1[t, con] == m.size[con])
+    
+def c_psi_1_min_rule(m, t, con):
+    return (0 <= (m.psi_1[t, con] - m.ksi_1[t, con]))
+
+def c_psi_1_max_rule(m, t, con):
+    return ((m.psi_1[t, con] - m.ksi_1[t, con]) <= (1-m.delta_1[t, con]) *
+            m.conversion.loc[con]['max-cap'])
+
+def c_psi_2_rule(m, t, con):
+    return (m.psi_2[t, con] == m.size[con])
+    
+def c_psi_2_min_rule(m, t, con):
+    return (0 <= (m.psi_2[t, con] - m.ksi_2[t, con]))
+
+def c_psi_2_max_rule(m, t, con):
+    return ((m.psi_2[t, con] - m.ksi_2[t, con]) <= (1-m.delta_2[t, con]) *
             m.conversion.loc[con]['max-cap'])
 
 # Demand constraints
 def c_heatdemand_rule(m, t):  
-    return (sum(m.v[t, c]
+    return (sum(m.v[t, c] * m.conversion.loc[c]['th-efficiency']/m.conversion.loc[c]['el-efficiency']
             for c in m.con_heat)  == m.demand.loc[t]['Heating']
             + (sum(m.u[t, d] for d in m.int_heat_demand)))
     
@@ -411,18 +571,22 @@ def c_cooldemand_rule(m, t):
     return (sum(m.v[t, c] for c in m.con_cool)  == m.demand.loc[t]['Cooling'])
 
 def c_eldemand_rule(m, t):
-    return (sum(m.v[t, c] * m.conversion.loc[c]['el-efficiency'] /
-            m.conversion.loc[c]['th-efficiency'] for c in m.con_el)
+    return (sum(m.v[t, c] 
+             for c in m.con_el)
             + m.el_buy[t] ==
             sum(m.u[t, d] for d in m.int_el_demand) + m.el_sell[t])
 #    return Constraint.Skip
     
 # Input constraints
 def c_input_rule(m, t, con):
-    return (m.u[t, con] == (m.ksi[t, con] * m.conversion.loc[con]['u0'] / 
-            m.conversion.loc[con]['efficiency']) + (((m.v[t, con]) /
+    return (m.u[t, con] == ((m.ksi_1[t, con] * m.conversion.loc[con]['ux1'] / 
+            m.conversion.loc[con]['efficiency']) + (((m.v_part_1[t, con]) /
             m.conversion.loc[con]['efficiency']) *
-            m.conversion.loc[con]['performance-slope']))
+            m.conversion.loc[con]['performance-slope-1']) +
+            (m.ksi_2[t, con] * m.conversion.loc[con]['ux2'] / 
+            m.conversion.loc[con]['efficiency']) + (((m.v_part_2[t, con]) /
+            m.conversion.loc[con]['efficiency']) *
+            m.conversion.loc[con]['performance-slope-2'])))
             
 # Costs constraints (calculations)
 def c_costs_rule(m, cost_type):
@@ -479,6 +643,13 @@ def c_gamma_2_max_rule(m, con):
 def c_part_size_rule(m, con):
     return (m.part_size_1[con] + m.part_size_2[con] == m.size[con])
     
+# Performance function linearisation constraints
+def c_beta_rule(m, con):
+    return (m.beta_1[con] + m.beta_2[con] == m.y[con])
+
+def c_beta_1_min_rule(m, con):
+    return (m.beta_1[con] * m.conversion.loc[con]['v1'])
+    
 
 # Objective rule
 def obj_rule(m):
@@ -502,7 +673,7 @@ if __name__ == '__main__':
     results = opt.solve(instance)
     
 #    opt = SolverFactory("cbc")    
-    
+#    
 #    solver_manager = SolverManagerFactory('neos')
 #    results = solver_manager.solve(instance, opt=opt)
     
