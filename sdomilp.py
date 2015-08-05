@@ -11,6 +11,8 @@ from pyomo.environ import *
 import numpy as np
 import pandas as pd
 
+import timeit
+
 def read_excel(filename):
     """
     Read Excel input file which contains equipment data and connectivity
@@ -563,18 +565,18 @@ def c_psi_2_max_rule(m, t, con):
 
 # Demand constraints
 def c_heatdemand_rule(m, t):  
-    return (sum(m.v[t, c] * m.conversion.loc[c]['th-efficiency']/m.conversion.loc[c]['el-efficiency']
+    return (sum(m.v[t, c] 
             for c in m.con_heat)  == m.demand.loc[t]['Heating']
             + (sum(m.u[t, d] for d in m.int_heat_demand)))
     
 def c_cooldemand_rule(m, t):
-    return (sum(m.v[t, c] for c in m.con_cool)  == m.demand.loc[t]['Cooling'])
+    return ((sum(m.v[t, c] for c in m.con_cool))  == m.demand.loc[t]['Cooling'])
 
 def c_eldemand_rule(m, t):
-    return (sum(m.v[t, c] 
+    return (sum(m.v[t, c] * m.conversion.loc[c]['el-efficiency'] / m.conversion.loc[c]['th-efficiency']
              for c in m.con_el)
             + m.el_buy[t] ==
-            sum(m.u[t, d] for d in m.int_el_demand) + m.el_sell[t])
+            (sum(m.u[t, d] for d in m.int_el_demand)) + m.el_sell[t])
 #    return Constraint.Skip
     
 # Input constraints
@@ -611,12 +613,12 @@ def c_costs_rule(m, cost_type):
     elif cost_type == 'Fuel':
         gas_user_index = m.connectivity['NG'][m.connectivity['NG'] == 1].index
 #        el_user_index = m.connectivity['EG'][m.connectivity['EG'] == 1].index
-        return m.costs['Fuel'] == \
+        return (m.costs['Fuel'] == 
             ((sum(m.u[t, p] for t in m.t for p in gas_user_index) * 
-                m.economic['gas-tariff'][0]) + \
-            (sum(m.el_buy[t] * m.economic['el-tariff'][0] for t in m.t)) - \
-            (sum(m.el_sell[t] * m.economic['feedin-tariff'][0] for t in m.t))) * \
-            91 * 24
+                m.economic['gas-tariff'][0]) + 
+            (sum(m.el_buy[t] * m.economic['el-tariff'][0] for t in m.t)) - 
+            (sum(m.el_sell[t] * m.economic['feedin-tariff'][0] for t in m.t))) * 
+            2190)
         
     elif cost_type == 'Inc':
         return Constraint.Skip
@@ -642,14 +644,7 @@ def c_gamma_2_max_rule(m, con):
     
 def c_part_size_rule(m, con):
     return (m.part_size_1[con] + m.part_size_2[con] == m.size[con])
-    
-# Performance function linearisation constraints
-def c_beta_rule(m, con):
-    return (m.beta_1[con] + m.beta_2[con] == m.y[con])
-
-def c_beta_1_min_rule(m, con):
-    return (m.beta_1[con] * m.conversion.loc[con]['v1'])
-    
+      
 
 # Objective rule
 def obj_rule(m):
@@ -662,14 +657,16 @@ Main program
 """
 if __name__ == '__main__':
     
+    start = timeit.default_timer()
+    
     input_data = read_excel('superstructureIO.xlsx')
     
     model = create_model(input_data)
     
-    model.pprint()
+#    model.pprint()
     
     instance = model.create()
-    opt = SolverFactory("glpk")
+    opt = SolverFactory("cplex")
     results = opt.solve(instance)
     
 #    opt = SolverFactory("cbc")    
@@ -679,6 +676,8 @@ if __name__ == '__main__':
     
     instance.load(results)
     
+    results.write()
+    
     for v in instance.active_components(Var):
         print("Variable", v)
         varobject = getattr(instance, v)
@@ -686,3 +685,7 @@ if __name__ == '__main__':
             print(" ", index, varobject[index].value)
     
     print "Objective value (NPV): ", results.Solution.Objective
+
+    stop = timeit.default_timer()
+    
+    print "Solution time: ", stop-start, " seconds."
