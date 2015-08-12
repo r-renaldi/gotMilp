@@ -192,36 +192,16 @@ def create_model(data):
         within=Binary,
         doc='Indicator of LTS charge')
         
-    m.delta_dch = Var(
-        m.t,
-        within=Binary,
-        doc='Indicator of LTS discharge')
- 
-    m.y = Var(
-        m.t,
-        within=Binary,
-        doc='Indicator of STS-LTS IF-THEN control')
+#    m.delta_dch = Var(
+#        m.t,
+#        within=Binary,
+#        doc='Indicator of LTS discharge')
+# 
+#    m.y = Var(
+#        m.t,
+#        within=Binary,
+#        doc='Indicator of STS-LTS IF-THEN control')
         
-    # Dumping control indicators
-#    m.delta_sts = Var(
-#        m.t,
-#        within=Binary,
-#        doc='Indicator if STS is full')
-#        
-#    m.delta_lts = Var(
-#        m.t,
-#        within=Binary,
-#        doc='Indicator if LTS is full')
-#        
-#    m.delta_extra = Var(
-#        m.t,
-#        within=Binary,
-#        doc='delta_extra == delta_sts * delta_lts')
-#    
-#    m.delta_sts_ch = Var(
-#        m.t,
-#        within=Binary,
-#        doc='charge sts ON/OFF')
     # Constraints
     # ===========
     # (constraints rules are defined separately)
@@ -279,51 +259,15 @@ def create_model(data):
         rule=c_sto_ctrl_dch_rule,
         doc='STS - LTS control - Discharge situation')
         
-    m.c_delta_ch = Constraint(
-        m.t,
-        rule=c_delta_ch_rule,
-        doc='delta_ch == y')
-        
-    m.c_delta_dch = Constraint(
-        m.t,
-        rule=c_delta_dch_rule,
-        doc='delta_dch == (1-y)')
-        
-    # Dumping constrants
-#    m.c_delta_sts = Constraint(
+#    m.c_delta_ch = Constraint(
 #        m.t,
-#        rule=c_delta_sts_rule,
-#        doc='%ch_sts >= delta_sts')
-##        
-#    m.c_delta_lts = Constraint(
-#        m.t,
-#        rule=c_delta_lts_rule,
-#        doc='%ch_lts >= delta_lts')
+#        rule=c_delta_ch_rule,
+#        doc='delta_ch == y')
 #        
-#    m.c_dump = Constraint(
+#    m.c_delta_dch = Constraint(
 #        m.t,
-#        rule=c_dump_rule,
-#        doc='q_dump == delta_extra * q_sco')
-#        
-#    m.c_delta_extra_1 = Constraint(
-#        m.t,
-#        rule=c_delta_extra_1_rule,
-#        doc='-delta_sts + delta_extra <= 0')
-#    
-#    m.c_delta_extra_2 = Constraint(
-#        m.t,
-#        rule=c_delta_extra_2_rule,
-#        doc='-delta_lts + delta_extra <= 0')
-#        
-#    m.c_delta_extra_3 = Constraint(
-#        m.t,
-#        rule=c_delta_extra_3_rule,
-#        doc='delta_sts + delta_sts - delta_extra <= 1')
-#        
-#    m.c_sts_deltas = Constraint(
-#        m.t,
-#        rule=c_sts_deltas_rule,
-#        doc='delta_sts_ch > delta_sts')
+#        rule=c_delta_dch_rule,
+#        doc='delta_dch == (1-y)')
     
     # Demand constraint
     m.c_demand = Constraint(
@@ -346,7 +290,7 @@ Constraints rules
 
 # Solar collector - hx1 constraint rule
 def c_sco_hx1_rule(m, t):
-    return (m.q_sco_hx1[t] == m.q_sco[t])
+    return (m.q_sco_hx1[t] <= m.q_sco[t])
             
 # Solar collector - storage charge constraint rule
 def c_sts_ch_rule(m, t):
@@ -364,7 +308,7 @@ def c_sto_max_ch_rule(m, t, sto):
 # Storage max discharge constraint rule
 def c_sto_max_dch_rule(m, t, sto):
     if sto == 'LTS':
-        return (m.q_dch[t, sto] <= m.delta_dch[t] * 
+        return (m.q_dch[t, sto] <= (1 - m.delta_ch[t]) * 
                 m.storage.loc[sto]['Max discharge rate'])
     else:
         return (m.q_dch[t, sto] <= m.storage.loc[sto]['Max discharge rate'])
@@ -389,39 +333,17 @@ def c_sto_rule(m, t, sto):
 # STS - LTS interaction constraint rule
 def c_sto_ctrl_ch_rule(m, t):
     return (m.percent_charge[t, 'STS'] - m.ch_req[t] <= 
-            0.75 * m.y[t])
+            0.75 * m.delta_ch[t])
     
 def c_sto_ctrl_dch_rule(m, t):
-    return (m.percent_charge[t, 'STS'] - m.ch_req[t] >= 0.00001 + (-1) * 
-            (1 - m.y[t]))
+    return (m.percent_charge[t, 'STS'] - m.ch_req[t] >= (-1) * 
+            (1 - m.delta_ch[t]))
             
-def c_delta_ch_rule(m,t):
-    return (m.delta_ch[t] == m.y[t])
-    
-def c_delta_dch_rule(m,t):
-    return (m.delta_dch[t] == (1 - m.y[t]))
-
-# Dumping constraints rules
-#def c_delta_sts_rule(m, t):
-#    return (m.percent_charge[t, 'STS'] >= m.delta_sts[t])
-#
-#def c_delta_lts_rule(m, t):
-#    return (m.percent_charge[t, 'LTS'] >= m.delta_lts[t])
-    
-#def c_dump_rule(m, t):
-#    return (m.q_dump[t] == m.delta_extra[t] * m.q_sco[t])
+#def c_delta_ch_rule(m,t):
+#    return (m.delta_ch[t] == m.y[t])
 #    
-#def c_delta_extra_1_rule(m, t):
-#    return (-m.delta_sts[t] + m.delta_extra[t] <= 0)
-#    
-#def c_delta_extra_2_rule(m, t):
-#    return (-m.delta_lts[t] + m.delta_extra[t] <= 0)
-#    
-#def c_delta_extra_3_rule(m, t):
-#    return (m.delta_sts[t] + m.delta_lts[t] - m.delta_extra[t] <= 1)
-    
-#def c_sts_deltas_rule(m, t):
-#    return (m.delta_sts_ch[t] + m.delta_sts[t] == 1)
+#def c_delta_dch_rule(m,t):
+#    return (m.delta_dch[t] == (1 - m.y[t]))
 
 # Demand constraint rule
 def c_demand_rule(m, t):
@@ -442,7 +364,7 @@ Main program
 if __name__ == '__main__':
     start = timeit.default_timer()
     
-    input_data = read_excel('sdhData_3months.xlsx')
+    input_data = read_excel('sdhData_week.xlsx')
     
     model = create_model(input_data)
 
@@ -460,6 +382,7 @@ if __name__ == '__main__':
     q_boi = []
     q_ch = []
     q_dch = []
+    q_sco = []
     q_sco_hx1 = []
     
     for v in instance.active_components(Var):
@@ -479,7 +402,14 @@ if __name__ == '__main__':
                 q_dch.append(varobject[index].value)
             elif v == 'q_sco_hx1':
                 q_sco_hx1.append(varobject[index].value)
-
+    
+    for p in instance.active_components(Param):
+        paramobject = getattr(instance, p)
+        
+        for index in paramobject:
+            if p == 'q_sco':
+                q_sco.append(paramobject[index])
+    
     print "Objective value (NPV): ", results.Solution.Objective
 
     stop = timeit.default_timer()
@@ -549,6 +479,14 @@ if __name__ == '__main__':
     ax33.set_ylabel('LTS State of Charge')
     ax33.set_xlabel('Hour')
     ax33.grid()
+    
+    fig4 = plt.figure()
+    width = 0.35
+    ax4 = subplot(111)
+    bar41 = ax4.bar(ind, q_sco, width, label='SCO', color='r')
+    bar42 = ax4.bar(ind+width, q_sco_hx1, width, label='HX1', color='y')
+    ax41.set_ylabel('Solar Energy (kJ)')
+    ax4.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=5, mode="expand", borderaxespad=0)
     
     
     
